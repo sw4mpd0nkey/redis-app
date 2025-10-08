@@ -1,36 +1,64 @@
-#include <stdint.h>
-#include <stdlib.h>
+#include "redis.h"
+
+
 #include <string.h>
-#include <stdio.h>
 #include <errno.h>
-#include <unistd.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <netinet/ip.h>
+#include <assert.h>
 
+extern const uint32_t K_MAX_MSG;
 
-static void msg(const char *msg) {
-    fprintf(stderr, "%s\n", msg);
-}
+static int32_t process_request(int connfd) {
 
-static void die(const char *msg) {
-    int err = errno;
-    fprintf(stderr, "[%d] %s\n", err, msg);
-    abort();
-}
-
-static void do_something(int connfd) {
-    char rbuf[64] = {};
-    ssize_t n = read(connfd, rbuf, sizeof(rbuf) - 1);
-    if (n < 0) {
-        msg("read() error");
-        return;
+    // header has four bytes
+    char rbuf[4 + K_MAX_MSG + 1];
+    errno = 0;
+    int32_t err = read_full(connfd, rbuf, 4);
+    if(err) {
+        if(errno == 0) {
+            msg("EOF");
+        } else {
+            msg("read() error");
+        }
+        
+        return err;
     }
-    fprintf(stderr, "client says: %s\n", rbuf);
 
-    char wbuf[] = "world";
-    write(connfd, wbuf, strlen(wbuf));
+    uint32_t len = 0;
+    // assumes little endian
+    memcpy(&len, rbuf, 4);
+    if (len > K_MAX_MSG) {
+        msg("too long");
+        return -1;
+    }
+
+    // process request body
+    err = read_full(connfd, &rbuf[4], len);
+    if (err) {
+        msg("read() error");
+        return err;
+    }
+
+    // do something
+    rbuf[4 + len] = '\0';
+    printf("client says: %s\n", &rbuf[4]);
+
+    return 0;
 }
+
+static int32_t process_response(int connfd) {
+    // reply using the same protocol
+    const char reply[] = "world";
+    char wbuf[4 + sizeof(reply)];
+    uint32_t len = (uint32_t)strlen(reply);
+
+    memcpy(wbuf, &len, 4);
+    memcpy(&wbuf[4], reply, len);
+    return write_all(connfd, wbuf, 4 + len);
+}
+
 
 int main() {
     // The AF_INET is for IPv4, use AF_INET6 for IPv6 or dual-stack socket
@@ -69,15 +97,27 @@ int main() {
 
     // Loop for each connection and do something with them.
     while (run) {
-        // accept
+
+        // accept new connection
         struct sockaddr_in client_addr = {};
         socklen_t addrlen = sizeof(client_addr);
+
         int connfd = accept(fd, (struct sockaddr *)&client_addr, &addrlen);
         if (connfd < 0) {
             continue;   // error
         }
 
-        do_something(connfd);
+        while(1) {
+            int32_t err = process_request(connfd);
+            if(err) {
+                die_close_connection("process_request()", connfd);
+            } else {
+                int32_t err2 = process_response(connfd);
+                if(err2) {
+                    die_close_connection("process_response()", connfd);
+                }
+            }
+        }
         close(connfd);
     }
 
