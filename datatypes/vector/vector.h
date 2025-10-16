@@ -4,31 +4,52 @@
 #pragma once
 #include <stdlib.h>
 #include <stdio.h>
+#include "../connection/conn.h";
 
-typedef struct vector_t vector_t;
+// generic vector type for interbal 
+typedef void* vector;
+// number of elements in a vector
+typedef size_t vector_size_t;
+// number of bytes for a type
+typedef size_t vector_type_t;
 
-// create a new vector object
-vector_t* vector_new();
-// initialize new vector
-void vector_ctr(vector_t* obj);
-// delete vector
-void vector_dtr(vector_t* obj);
-// getter, returns size of the vector
-int vector_size(vector_t* obj);
-// getter, returns capacity of the vector
-int vector_capacity(vector_t* obj);
+
+// vector type
+typedef struct
+{
+	vector_size_t size;
+	vector_type_t capacity;
+	unsigned char elements[];
+} vector_data_t;
+
+// returns the meta data for the vector
+vector_data_t* vector_get_data(vector vec);
+// creates new vector
+vector_data_t* vector_new();
+// create a new vector instance
+vector vector_create(void);
+// destroy specified vector
+void vector_destroy(vector vector);
+// returns current size of the specified vector
+vector_size_t vector_size(vector vector);
+// returns current capacity of specified vector
+vector_size_t vector_capacity(vector vector);
 // add element to the vector
-void vector_push_back(vector_t* obj, const int element);
+void vector_push_back(vector* vector_address, vector_type_t type_size);
+
+///////////////////////////////////////////////////////////
+
+
 // access element at index in vector obj
-int vector_at(vector_t* obj, const int index);
+int vector_at(vector_data_t* obj, const int index);
 // access beginning of vector
-int* vector_begin(vector_t* obj);
+int* vector_begin(vector_data_t* obj);
 // access end of vector
-int* vector_end(vector_t* obj);
+int* vector_end(vector_data_t* obj);
 // pops last element off vector
-void vector_pop_back(vector_t* obj);
+void vector_pop_back(vector_data_t* obj);
 // erase element
-void vector_erase(vector_t* obj, int* first, int* last); 
+void vector_erase(vector_data_t* obj, int* first, int* last); 
 
 
 #endif // VECTOR_H
