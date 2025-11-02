@@ -20,4 +20,4 @@ typedef struct conn_t {
     size_t wbuf_size;
     size_t wbuf_sent;
     uint8_t wbuf;
-} vector_t;
+} conn_t;

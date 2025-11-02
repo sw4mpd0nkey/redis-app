@@ -1,6 +1,19 @@
+#include "datatypes/vector/vector.h"
 #include "redis.h"
 
-
+// stdlib
+#include <assert.h>
+#include <complex.h>
+#include <stdint.h>
+#include <string.h>
+#include <errno.h>
+// system
+#include <fcntl.h>
+#include <poll.h>
+#include <unistd.h>
+#include <arpa/inet.h>
+#include <sys/socket.h>
+#include <netinet/ip.h>
 #include <string.h>
 #include <errno.h>
 #include <arpa/inet.h>
@@ -59,6 +72,22 @@ static int32_t process_response(int connfd) {
     return write_all(connfd, wbuf, 4 + len);
 }
 
+static void fd_set_nb(int fd) {
+    errno = 0;
+    int flags = fcntl(fd, F_GETFL, 0);
+    if (errno) {
+        die("fcntl error");
+        return;
+    }
+
+    flags |= O_NONBLOCK;
+
+    errno = 0;
+    (void)fcntl(fd, F_SETFL, flags);
+    if (errno) {
+        die("fcntl error");
+    }
+}
 
 int main() {
     // The AF_INET is for IPv4, use AF_INET6 for IPv6 or dual-stack socket
@@ -95,30 +124,14 @@ int main() {
         die("listen()");
     }
 
-    // Loop for each connection and do something with them.
-    while (run) {
 
-        // accept new connection
-        struct sockaddr_in client_addr = {};
-        socklen_t addrlen = sizeof(client_addr);
+    // create a vector of client connections
+    vector fd2conn = vector_create();
+    
+    fd_set_nb(fd);
 
-        int connfd = accept(fd, (struct sockaddr *)&client_addr, &addrlen);
-        if (connfd < 0) {
-            continue;   // error
-        }
-
-        while(1) {
-            int32_t err = process_request(connfd);
-            if(err) {
-                die_close_connection("process_request()", connfd);
-            } else {
-                int32_t err2 = process_response(connfd);
-                if(err2) {
-                    die_close_connection("process_response()", connfd);
-                }
-            }
-        }
-        close(connfd);
+    while(1) {
+        
     }
 
     return 0;
