@@ -47,11 +47,11 @@ void vector_push_back(vector* vector_address, vector_type_t type_size) {
 
 	if (!vector_has_space(h))
 	{
-		h = vector_realloc(h, type_size);
+		//h = vector_realloc(h, type_size);
 		*vector_address = h->elements;
 	}
 
-	return &h->elements[type_size * h->size++];
+	//return &h->elements[type_size * h->size++];
 }
 
 int vector_at(vector_data_t* obj, const int index)
