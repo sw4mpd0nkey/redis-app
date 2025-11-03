@@ -12,14 +12,16 @@ typedef void* vector;
 typedef size_t vector_size_t;
 // number of bytes for a type
 typedef size_t vector_type_t;
-
+ typedef struct {
+	conn_t* connection;
+ } conn_map;
 
 // vector type
 typedef struct
 {
 	vector_size_t size;
 	vector_type_t capacity;
-	unsigned char elements[];
+	conn_map* elements[];
 } vector_data_t;
 
 // returns the meta data for the vector
