@@ -1,5 +1,6 @@
-#include "datatypes/vector/vector.h"
 #include "redis.h"
+#include "datatypes/vector/vector.h"
+#include "datatypes/connection/conn.h"
 
 // stdlib
 #include <assert.h>
@@ -125,6 +126,82 @@ int main() {
     }
 
 
+    // a map of all client connections, keyed by fd
+    vector *fd2conn = create_vector(sizeof(int *), compare);
+    // the event loop
+    vector *poll_args = create_vector(sizeof(int *), compare);
+
+    while (1) {
+        
+        // prepare the arguments of the poll()
+        poll_args.
+        // put the listening sockets in the first position
+        struct pollfd pfd = {fd, POLLIN, 0};
+        poll_args.push_back(pfd);
+        // the rest are connection sockets
+        for (Conn *conn : fd2conn) {
+            if (!conn) {
+                continue;
+            }
+            // always poll() for error
+            struct pollfd pfd = {conn->fd, POLLERR, 0};
+            // poll() flags from the application's intent
+            if (conn->want_read) {
+                pfd.events |= POLLIN;
+            }
+            if (conn->want_write) {
+                pfd.events |= POLLOUT;
+            }
+            poll_args.push_back(pfd);
+        }
+
+        // wait for readiness
+        int rv = poll(poll_args.data(), (nfds_t)poll_args.size(), -1);
+        if (rv < 0 && errno == EINTR) {
+            continue;   // not an error
+        }
+        if (rv < 0) {
+            die("poll");
+        }
+
+        // handle the listening socket
+        if (poll_args[0].revents) {
+            if (Conn *conn = handle_accept(fd)) {
+                // put it into the map
+                if (fd2conn.size() <= (size_t)conn->fd) {
+                    fd2conn.resize(conn->fd + 1);
+                }
+                assert(!fd2conn[conn->fd]);
+                fd2conn[conn->fd] = conn;
+            }
+        }
+
+        // handle connection sockets
+        for (size_t i = 1; i < poll_args.size(); ++i) { // note: skip the 1st
+            uint32_t ready = poll_args[i].revents;
+            if (ready == 0) {
+                continue;
+            }
+
+            Conn *conn = fd2conn[poll_args[i].fd];
+            if (ready & POLLIN) {
+                assert(conn->want_read);
+                handle_read(conn);  // application logic
+            }
+            if (ready & POLLOUT) {
+                assert(conn->want_write);
+                handle_write(conn); // application logic
+            }
+
+            // close the socket from socket error or application logic
+            if ((ready & POLLERR) || conn->want_close) {
+                (void)close(conn->fd);
+                fd2conn[conn->fd] = NULL;
+                delete conn;
+            }
+        }   // for each connection sockets
+    }   // the event loop
+
     // create a vector of client connections
     vector fd2conn = vector_create();
     
@@ -136,3 +213,8 @@ int main() {
 
     return 0;
 }
+
+  int compare(const void *a,const void *b)
+  {
+  return *(int *)a-*(int *)b;
+  }

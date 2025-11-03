@@ -4,15 +4,7 @@
 #pragma once
 #include <stdlib.h>
 #include <stdio.h>
-#include "../connection/conn.h";
-
-// generic vector type for interbal 
-typedef void* vector;
-// number of elements in a vector
-typedef size_t vector_size_t;
-// number of bytes for a type
-typedef size_t vector_type_t;
- typedef struct {
+#include <string.h> typedef struct {
 	conn_t* connection;
  } conn_map;
 
