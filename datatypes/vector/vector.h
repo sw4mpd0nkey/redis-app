@@ -4,52 +4,56 @@
 #pragma once
 #include <stdlib.h>
 #include <stdio.h>
-#include "../connection/conn.h";
-
-// generic vector type for interbal 
-typedef void* vector;
-// number of elements in a vector
-typedef size_t vector_size_t;
-// number of bytes for a type
-typedef size_t vector_type_t;
-
+#include <string.h>
 
 // vector type
-typedef struct
+struct vector
 {
-	vector_size_t size;
-	vector_type_t capacity;
-	unsigned char elements[];
-} vector_data_t;
+	void *elements;
+	unsigned int size;
+	unsigned int capacity;
+	int word_size;
+	int (*cmp)(const void *, const void *);
+};
+typedef struct vector vector;
 
-// returns the meta data for the vector
-vector_data_t* vector_get_data(vector vec);
-// creates new vector
-vector_data_t* vector_new();
-// create a new vector instance
-vector vector_create(void);
-// destroy specified vector
-void vector_destroy(vector vector);
-// returns current size of the specified vector
-vector_size_t vector_size(vector vector);
-// returns current capacity of specified vector
-vector_size_t vector_capacity(vector vector);
-// add element to the vector
-void vector_push_back(vector* vector_address, vector_type_t type_size);
+// create a new vector
+vector *create_vector(int word_size, int (*compare)(const void *, const void *));
 
-///////////////////////////////////////////////////////////
+// getter for size attribute
+unsigned int get_size(vector *vector);
 
+// getter for capacity attribute
+unsigned int get_capacity(vector *vector);
 
-// access element at index in vector obj
-int vector_at(vector_data_t* obj, const int index);
-// access beginning of vector
-int* vector_begin(vector_data_t* obj);
-// access end of vector
-int* vector_end(vector_data_t* obj);
-// pops last element off vector
-void vector_pop_back(vector_data_t* obj);
-// erase element
-void vector_erase(vector_data_t* obj, int* first, int* last); 
+// returns 1 for empty and 0 for not 
+int is_empty(vector *vector);
 
+// pushes new element onto end of the vector and resizes if needed
+void push_back(vector *vector, void *data);
+
+// pops the element off the end of the array
+void pop_back(vector *vector);
+
+// deletes the heap allocated memory
+void delete_vector(vector *vector);
+
+void *get(vector *vector, unsigned int index);
+
+void *set(vector *vector, void *data, unsigned int index);
+
+// shrinks the vector to the size of the vector. No unwanted storage used
+void shrinkToFit(vector *vector);
+
+// Insert an element at arbitrary position
+void insert(vector *vector, void *elemAddr, unsigned int position);
+
+// Delete an element from an arbitrary position
+void removeAt(vector *vector, unsigned int position);
+
+void print(vector *vector, void (*printFunc)(const void *), char printNewLineAtTheEnd);
+
+// uses the built in qsort to sort the generic vector
+void sort(vector *vector);
 
 #endif // VECTOR_H

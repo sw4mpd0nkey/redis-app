@@ -1,90 +1,153 @@
 #include <stdlib.h>
 #include <stdio.h>
-#include "../connection/conn.h";
 #include "vector.h"
 
 static const int DEFAULT_CAPACITY = 4;
 
-vector_data_t* vector_get_data(vector vec) { 
-    return &((vector_data_t*)vec)[-1]; 
+
+vector *create_vector(int word_size, int (*compare)(const void *, const void *)) {
+    vector *newboi = (vector *)calloc(1, sizeof(vector));
+    newboi->cmp = compare;
+    newboi->size = 0;
+    newboi->capacity = DEFAULT_CAPACITY;
+    newboi->word_size = word_size;
+    newboi->elements = calloc(DEFAULT_CAPACITY, word_size);
+
+    return newboi;
 }
 
-vector_data_t* vector_new() {
-    vector_data_t* v = (vector_data_t*)malloc(sizeof(vector_data_t));
-	v->capacity = DEFAULT_CAPACITY;
-	v->size = 0;
-
-	return &v->elements;
+unsigned int get_size(vector *vector) {
+    return vector->size;
 }
 
-vector vector_create(void) {
-	vector_data_t* h = (vector_data_t*)malloc(sizeof(vector_data_t));
-	h->capacity = DEFAULT_CAPACITY;
-	h->size = 0;
-
-	return &h->elements;
-}
-
-void vector_destroy(vector vector) { 
-    free(vector_get_data(vector)); 
-}
-
-vector_size_t vector_size(vector vector) { 
-    return vector_get_data(vector)->size; 
-}
-
-vector_size_t vector_capacity(vector vector) { 
-    return vector_get_data(vector)->capacity; 
-}
-
-int vector_has_space(vector_data_t* d) {
-	return d->capacity - d->size > 0;
+unsigned int get_capacity(vector *vector) {
+    return vector->capacity;
 }
 
 
-void vector_push_back(vector* vector_address, vector_type_t type_size) {
-	vector_data_t* h = vector_get_header(*vector_address);
-
-	if (!vector_has_space(h))
-	{
-		h = vector_realloc(h, type_size);
-		*vector_address = h->elements;
-	}
-
-	return &h->elements[type_size * h->size++];
-}
-
-int vector_at(vector_data_t* obj, const int index)
-{
-    return obj->elements[index];
-}
-
-int* vector_begin(vector_data_t* obj)
-{
-    return &obj->elements[0];
-}
-
-int* vector_end(vector_data_t* obj)
-{
-    /* Returns a THEORETICAL past-the-end Element 
-        and thus shall not be dereferenced! */
-    return &obj->elements[obj->size];
-}
-
-void vector_pop_back(vector_data_t* obj)
-{
-    int lastIndex = obj->size - 1;
-    obj->elements[lastIndex] = 0;
-    obj->size--;
-}
-
-void vector_erase(vector_data_t* obj, int* first, int* last)
-{
-    int lastElement = (obj->size - 1);
-    int firstElement = first - &obj->elements[0];
-
-    for(int i=firstElement; i < lastElement; i++) {
-        obj->elements[i] = obj->elements[i+1];
+int is_empty(vector *vector) {
+    if(vector->size > 0) {
+        return 1;
+    } else {
+        return 0;
     }
-    obj->size -= (last - first) > 0 ? (last - first) : 1;
+}
+
+
+void push_back(vector *vector, void *data) {
+
+    // verify that there is space in the vector
+    if (size(vector) < capacity(vector)) {
+
+        // no need to resize so set a pointer to the elements attribute
+        char *ptr = (char *)vector->elements;
+        // move the pointer to the end of the vector 
+        ptr += (size(vector) * (vector->word_size));
+        // create a copy of the data and tack that onto the vector
+        memcpy((void *)ptr, (const void *)data, vector->word_size);
+        // increase the size value
+        vector->size++;
+    } else {
+        // needs to be resized so we create a tmp pointer to the current data
+        void *tmp = vector->elements;
+        // set the vectors elements to a new bigger size
+        vector->elements = calloc(2 * capacity(vector), vector->word_size);
+        // increase capacity size
+        vector->capacity = 2 * capacity(vector);
+        // add new tmp data section to the vectors elements
+        memcpy(vector->elements, tmp, size(vector) * vector->word_size);
+        // clear the data at tmp
+        free(tmp);
+        // call push_back again with the same data and it'll be added to the vector
+        push_back(vector, data);
+    }
+}
+
+void pop_back(vector *vec) {
+    if (size(vec) != 0) {
+        vec->size -= 1;
+    }
+}
+
+void delete_vector(vector *vector) {
+    if (vector->elements != NULL) {
+        free(vector->elements);
+        vector->elements = NULL;
+    }
+}
+
+void *get(vector *vector, unsigned int index) {
+    return (void *)((char *)vector->elements + (index * vector->word_size));
+}
+
+void *set(vector *vector, void *data, unsigned int index) {
+    if (index < capacity(vector)) {
+        void *ptr = (void *)((char *)vector->elements + (index * (vector->word_size)));
+        memcpy(ptr, (const void *)data, vector->word_size);
+    
+        if (index >= vector->size) {
+            vector->size = (index + 1);
+        }
+
+        return ptr;
+    }
+  
+    return NULL;
+}
+
+void shrinkToFit(vector *vector) {
+  if (size(vector) != 0) {
+    void *tmp = vector->elements;
+    vector->elements = calloc(vector->size, vector->word_size);
+    memcpy(vector->elements, tmp, size(vector) * vector->word_size);
+    free(tmp);
+    vector->capacity = vector->size;
+  }
+}
+
+void insert(vector *vector, void *elemAddr, unsigned int position) {
+
+  unsigned int len = size(vector);
+  
+  if (len == position) {
+    push_back(vector, elemAddr);
+    return;
+  
+} else {
+
+    push_back(vector, (char *)vector->elements + (len - 1) * vector->word_size);
+    memmove((void *)((char *)vector->elements + (position + 1) * vector->word_size),
+            (void *)((char *)vector->elements + position * vector->word_size),
+            (len - position - 1) * vector->word_size);
+    set(vector, elemAddr, position);
+    return;
+  }
+}
+
+void removeAt(vector *vector, unsigned int position) {
+
+  int len = size(vector);
+  if (position == len - 1) {
+    pop_back(vector);
+  } else {
+    for (unsigned int i = position + 1; i < size(vector); i++) {
+      set(vector, get(vector, i), i - 1);
+    }
+    (vector->size)--;
+  }
+}
+
+void printAll(vector *vector, void (*printFunc)(const void *),
+              char printNewLineAtTheEnd) {
+  for (unsigned int i = 0; i < size(vector); i++) {
+    printFunc(get(vector, i));
+  }
+  if (printNewLineAtTheEnd) {
+    printf("\n");
+  }
+}
+
+// uses the built in qsort to sort the generic vector
+void sort(vector *vector) { 
+    qsort(vector->elements, size(vector), vector->word_size, vector->cmp); 
 }
