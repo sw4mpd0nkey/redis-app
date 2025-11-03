@@ -2,6 +2,19 @@
 #include "datatypes/vector/vector.h"
 #include "datatypes/connection/conn.h"
 
+// stdlib
+#include <assert.h>
+#include <complex.h>
+#include <stdint.h>
+#include <string.h>
+#include <errno.h>
+// system
+#include <fcntl.h>
+#include <poll.h>
+#include <unistd.h>
+#include <arpa/inet.h>
+#include <sys/socket.h>
+#include <netinet/ip.h>
 #include <string.h>
 #include <errno.h>
 #include <arpa/inet.h>
@@ -60,6 +73,22 @@ static int32_t process_response(int connfd) {
     return write_all(connfd, wbuf, 4 + len);
 }
 
+static void fd_set_nb(int fd) {
+    errno = 0;
+    int flags = fcntl(fd, F_GETFL, 0);
+    if (errno) {
+        die("fcntl error");
+        return;
+    }
+
+    flags |= O_NONBLOCK;
+
+    errno = 0;
+    (void)fcntl(fd, F_SETFL, flags);
+    if (errno) {
+        die("fcntl error");
+    }
+}
 
 int main() {
     // The AF_INET is for IPv4, use AF_INET6 for IPv6 or dual-stack socket
@@ -95,6 +124,7 @@ int main() {
     if (rv) {
         die("listen()");
     }
+
 
     // a map of all client connections, keyed by fd
     vector *fd2conn = create_vector(sizeof(int *), compare);
@@ -171,6 +201,15 @@ int main() {
             }
         }   // for each connection sockets
     }   // the event loop
+
+    // create a vector of client connections
+    vector fd2conn = vector_create();
+    
+    fd_set_nb(fd);
+
+    while(1) {
+        
+    }
 
     return 0;
 }
