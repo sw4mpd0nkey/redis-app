@@ -1,14 +1,31 @@
-.IGNORE: clean
+TARGET_SRV = bin/server
+TARGET_CLI = bin/client
 
-all: clean compile
+SRC_SRV = $(wildcard src/srv/*.c)
+OBJ_SRV = $(SRC_SRV:src/srv/%.c=obj/srv/%.o)
 
-clean: 
-	rm dist/server dist/client
+SRC_CLI = $(wildcard src/cli/*.c)
+OBJ_CLI = $(SRC_CLI:src/cli/%.c=obj/cli/%.o)
 
-server: server.c
-	gcc -Wall -Wextra -O2 -g redis.c server.c -o dist/server
+run: clean default
+	./$(TARGET_SRV) -f ./mynewdb.db -n -p 8080 &
+	./$(TARGET_CLI) 127.0.0.1
+	kill -9 $$(pidof dbserver)
 
-client: client.c
-	gcc -Wall -Wextra -O2 -g redis.c client.c -o dist/client
+default: $(TARGET_SRV) $(TARGET_CLI)
 
-compile: server client
+clean:
+	rm -rf obj/srv/*.o
+	rm -rf bin/*
+
+$(TARGET_SRV): $(OBJ_SRV)
+	gcc -o $@ $?
+
+$(OBJ_SRV): obj/srv/%.o: src/srv/%.c
+	gcc -c $< -o $@ -Iinclude
+
+$(TARGET_CLI): $(OBJ_CLI)
+	gcc -g -o $@ $?
+
+$(OBJ_CLI): obj/cli/%.o: src/cli/%.c
+	gcc -c $< -o $@ -Iinclude
