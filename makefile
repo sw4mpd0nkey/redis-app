@@ -12,6 +12,7 @@ run: clean default
 	./$(TARGET_CLI) 127.0.0.1
 	kill -9 $$(pidof dbserver)
 
+# runs server on default
 default: $(TARGET_SRV) $(TARGET_CLI)
 
 clean:

@@ -13,27 +13,38 @@
 // function for establishing hello connection
 int send_hello(int fd) {
 
-    // for now our message is just "hello"
-    char msg[] = "hello";
+    char buf[4096] = {0};
 
-    // write to the server using the socket fd
-    write(fd, msg, strlen(msg));
+    redis_proto_header_t *hdr = (redis_proto_header_t *)buf;
+    hdr->type = MSG_HELLO_REQ;
+    hdr->len = 1;
 
-    // holds the server response
-    char response_buf[64] = {};
-    ssize_t n = read(fd, response_buf, sizeof(response_buf) - 1);
+    // send the hello request with the version we speak
+    redis_proto_hello_req* hello = (redis_proto_hello_req*)&hdr[1];
+    hello->proto = PROTO_VER;
 
-    if (n < 0) {
-        perror("read response");
-        close(fd);
+    hdr->type = htonl(hdr->type);
+    hdr->len = htons(hdr->len);
+    hello->proto = htons(hello->proto);
+
+    // write the hello message
+    write(fd, buf, sizeof(redis_proto_header_t) + sizeof(redis_proto_hello_req));
+  
+    // recv the response
+    read(fd, buf, sizeof(buf));
+
+    hdr->type = ntohl(hdr->type);
+    hdr->len = ntohs(hdr->len);
+
+    // handle error response
+    if (hdr->type == MSG_ERROR) {
+  	    printf("Protocol mismatch.\n");
+  	    close(fd);
         return STATUS_ERROR;
     }
 
     // return success
-    printf("Server connected, msg sent.\n");
-    printf("server says: %s\n", response_buf);
-    close(fd);
-
+    printf("Server connected, protocol v1.\n");
     return STATUS_SUCCESS;
 }
 

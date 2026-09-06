@@ -13,6 +13,11 @@
 #include <stdio.h>
 
 #include "common.h"
+#include "srvpoll.h"
+
+#define MAX_CLIENTS 256
+
+clientstate_t clientStates[MAX_CLIENTS] = {0};
 
 int send_response(int fd) {
 
@@ -36,24 +41,33 @@ int send_response(int fd) {
     return STATUS_SUCCESS;
 }
 
-int main() {
+void poll_loop(unsigned short port) {
 
-    int listen_fd,
-        opt = 1,
-        port = 8080;
-
+	int listen_fd, 
+        conn_fd, 
+        freeSlot;
+    
     struct sockaddr_in server_addr, 
                        client_addr;
 
-    // Create listening socket and make sure the file descriptor is valid
+    socklen_t client_len = sizeof(client_addr);
+
+    struct pollfd fds[MAX_CLIENTS + 1];
+    int nfds = 1; 
+    int opt = 1;
+
+    // Initialize client states
+    init_clients(clientStates);
+
+    // Create listening socket
     if ((listen_fd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
         perror("socket");
-        return -1;
+        return;
     }
 
     if (setsockopt(listen_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt))) {
         perror("setsockopt");
-        return -1;
+        return;
     }
 
     // Set up server address structure
@@ -65,32 +79,97 @@ int main() {
     // Bind
     if (bind(listen_fd, (struct sockaddr *)&server_addr, sizeof(server_addr)) == -1) {
         perror("bind");
-        return -1;
+        return;
     }
 
     // Listen
     if (listen(listen_fd, 10) == -1) {
         perror("listen");
-        return -1;
+        return;
     }
 
-    printf("Server listening on port %d\n", port);
+    printf("Server listening on port %d\n", PORT);
 
-    // listen loop
-    while (true) {
+    memset(fds, 0, sizeof(fds));
+    fds[0].fd = listen_fd;
+    fds[0].events = POLLIN;
+    nfds = 1;
 
-        socklen_t addrlen = sizeof(client_addr);
+    while (1) {
 
-        int connection_fd = accept(listen_fd, (struct sockaddr *)&client_addr, &addrlen);
+        int ii = 1;
 
-        if (connection_fd < 0) {
-            continue;   // error
+        for (int i = 0; i < MAX_CLIENTS; i++) {
+            if (clientStates[i].fd != -1) {
+                fds[ii].fd = clientStates[i].fd; // Offset by 1 for listen_fd
+                fds[ii].events = POLLIN;
+                ii++;
+            }   
         }
 
-        send_response(connection_fd);
-        close(connection_fd);
+        // Wait for an event on one of the sockets
+        int n_events = poll(fds, nfds, -1); // -1 means no timeout
+        if (n_events == -1) {
+            perror("poll");
+            return;
+        }
 
+        // Check for new connections
+        if (fds[0].revents & POLLIN) {
+            if ((conn_fd = accept(listen_fd, (struct sockaddr *)&client_addr, &client_len)) == -1) {
+                perror("accept");
+                continue;
+            }
+
+            printf("New connection from %s:%d\n",
+            	inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
+
+            freeSlot = find_free_slot(clientStates);
+            if (freeSlot == -1) {
+                printf("Server full: closing new connection\n");
+                close(conn_fd);
+            } else {
+                clientStates[freeSlot].fd = conn_fd;
+                clientStates[freeSlot].state = STATE_HELLO;
+                nfds++;
+                printf("Slot %d has fd %d\n", freeSlot, clientStates[freeSlot].fd);
+            }
+
+            n_events--;
+        }
+
+        // Check each client for read/write activity
+        for (int i = 1; i <= nfds && n_events > 0; i++) { // Start from 1 to skip the listen_fd
+            if (fds[i].revents & POLLIN) {
+                n_events--;
+
+                int fd = fds[i].fd;
+                int slot = find_slot_by_fd(clientStates, fd);
+                ssize_t bytes_read = read(fd, &clientStates[slot].buffer, sizeof(clientStates[slot].buffer));
+                if (bytes_read <= 0) {
+                    // Connection closed or error
+                    close(fd);
+
+                    if (slot != -1) {
+                        clientStates[slot].fd = -1; // Free up the slot
+                        clientStates[slot].state = STATE_DISCONNECTED;
+                        printf("Client disconnected\n");
+                        nfds--;
+                    }
+                } else {
+                    handle_client_fsm(&clientStates[slot]);
+                }
+            }
+        }
     }
+}
+
+
+int main() {
+
+    int port = 8080;
+
+    poll_loop(port);
 
     return 0;
 }
