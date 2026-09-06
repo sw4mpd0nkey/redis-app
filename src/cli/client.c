@@ -52,11 +52,12 @@ int main() {
     int port = 8080;
     char *host = "127.0.0.1";
 
-    // struct for the server 
+    // struct for the server information. htons whiches the endieness
+    // of the data for transporting acress the wire 
     struct sockaddr_in serverInfo = {0}; 
     serverInfo.sin_family = AF_INET;
-    serverInfo.sin_addr.s_addr = inet_addr(host);
-    serverInfo.sin_port = htons(port);
+    serverInfo.sin_addr.s_addr = inet_addr(HOST_IP);
+    serverInfo.sin_port = htons(PORT);
 
     // retrieve the file desciptor from the socket connection to the sever
     // and if undefined err out
@@ -74,7 +75,8 @@ int main() {
         return 0;
     } 
 
-    // atempt to send hello message to the server
+    // atempt to send hello message to the server, the MSG_HELLO_REQ starts the protocol
+    // hand shake
     if (send_hello(fd) != STATUS_SUCCESS) {
         return -1;
     }

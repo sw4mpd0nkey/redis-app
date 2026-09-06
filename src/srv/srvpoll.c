@@ -53,12 +53,20 @@ int find_slot_by_fd(clientstate_t* states, int fd) {
     return -1; // Not found
 }
 
+
+// functions that handles the finite state machine for client requests. Based on
+// the clients state there are limited possible action options and this will
+// verify that only allowed requests go through and processes the request
 void handle_client_fsm(clientstate_t *client) {
     redis_proto_header_t *header = (redis_proto_header_t*)client->buffer; 
 
+    // ntol translates the endieness from the wire to the host
     header->type = ntohl(header->type);
     header->len = ntohs(header->len);
 
+    // currently the only state that is handled, in the hello state the server is waiting
+    // for a hello req msg from the client and will only move to the next state when it
+    // recieves it
     if (client->state == STATE_HELLO) {
         if (header->type != MSG_HELLO_REQ || header->len != 1) {
             printf("Didn't get MSG_HELLO in HELLO state...\n");
@@ -66,6 +74,8 @@ void handle_client_fsm(clientstate_t *client) {
             return;
         }
 
+        // request is a hello req msg, checking the protocol versions match
+        // before moving forward
         redis_proto_hello_req* hello = (redis_proto_hello_req*)&header[1];
         hello->proto = ntohs(hello->proto);
         if (hello->proto != PROTO_VER) {
@@ -74,6 +84,7 @@ void handle_client_fsm(clientstate_t *client) {
             return;
         }
 
+        // protocol versions match so moving state to STATE_MSG
         fsm_reply_hello(client, header);
         client->state = STATE_MSG;
         printf("Client upgraded to STATE_MSG\n");

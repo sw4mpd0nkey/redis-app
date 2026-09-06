@@ -41,12 +41,13 @@ int send_response(int fd) {
     return STATUS_SUCCESS;
 }
 
-void poll_loop(unsigned short port) {
+void poll_loop() {
 
 	int listen_fd, 
         conn_fd, 
         freeSlot;
-    
+
+    // structs for storing server and client related data
     struct sockaddr_in server_addr, 
                        client_addr;
 
@@ -74,7 +75,7 @@ void poll_loop(unsigned short port) {
     memset(&server_addr, 0, sizeof(server_addr));
     server_addr.sin_family = AF_INET;
     server_addr.sin_addr.s_addr = INADDR_ANY;
-    server_addr.sin_port = htons(port);
+    server_addr.sin_port = htons(PORT);
 
     // Bind
     if (bind(listen_fd, (struct sockaddr *)&server_addr, sizeof(server_addr)) == -1) {
@@ -114,7 +115,8 @@ void poll_loop(unsigned short port) {
             return;
         }
 
-        // Check for new connections
+        // Check for new connections and assisning the new connection 
+        // a place in the clientStates array
         if (fds[0].revents & POLLIN) {
             if ((conn_fd = accept(listen_fd, (struct sockaddr *)&client_addr, &client_len)) == -1) {
                 perror("accept");
@@ -124,6 +126,7 @@ void poll_loop(unsigned short port) {
             printf("New connection from %s:%d\n",
             	inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
 
+            
             freeSlot = find_free_slot(clientStates);
             if (freeSlot == -1) {
                 printf("Server full: closing new connection\n");
@@ -139,7 +142,8 @@ void poll_loop(unsigned short port) {
         }
 
         // Check each client for read/write activity
-        for (int i = 1; i <= nfds && n_events > 0; i++) { // Start from 1 to skip the listen_fd
+        // Start from 1 to skip the listen_fd
+        for (int i = 1; i <= nfds && n_events > 0; i++) { 
             if (fds[i].revents & POLLIN) {
                 n_events--;
 
@@ -167,9 +171,7 @@ void poll_loop(unsigned short port) {
 
 int main() {
 
-    int port = 8080;
-
-    poll_loop(port);
+    poll_loop();
 
     return 0;
 }
